@@ -1,0 +1,8 @@
+# Rust
+
+/target
+
+.env
+*.pdb
+Cargo.lock
+**/*.rs.bk
