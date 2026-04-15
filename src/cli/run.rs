@@ -55,6 +55,14 @@ fn parse_env_contents(contents: &str) -> Result<HashMap<String, String>> {
             if key.is_empty() {
                 anyhow::bail!("Empty key on line {}", line_number + 1);
             }
+            // Keys must not contain whitespace, as shells and most tools reject them
+            if key.contains(char::is_whitespace) {
+                anyhow::bail!(
+                    "Key on line {} contains whitespace: {:?}",
+                    line_number + 1,
+                    key
+                );
+            }
             map.insert(key.to_string(), value.trim().to_string());
         } else {
             anyhow::bail!("Invalid env line {} (expected KEY=VALUE): {}", line_number + 1, line);
