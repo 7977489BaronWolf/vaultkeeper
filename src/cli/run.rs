@@ -45,15 +45,19 @@ pub fn parse_env_contents_pub(contents: &str) -> Result<HashMap<String, String>>
 
 fn parse_env_contents(contents: &str) -> Result<HashMap<String, String>> {
     let mut map = HashMap::new();
-    for line in contents.lines() {
+    for (line_number, line) in contents.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
         if let Some((key, value)) = line.split_once('=') {
-            map.insert(key.trim().to_string(), value.trim().to_string());
+            let key = key.trim();
+            if key.is_empty() {
+                anyhow::bail!("Empty key on line {}", line_number + 1);
+            }
+            map.insert(key.to_string(), value.trim().to_string());
         } else {
-            anyhow::bail!("Invalid env line (expected KEY=VALUE): {}", line);
+            anyhow::bail!("Invalid env line {} (expected KEY=VALUE): {}", line_number + 1, line);
         }
     }
     Ok(map)
