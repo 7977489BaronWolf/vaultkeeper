@@ -1,76 +1,73 @@
-pub mod keygen;
-pub mod lock;
-pub mod unlock;
-pub mod list;
-pub mod run;
 pub mod edit;
+pub mod init;
+pub mod keygen;
+pub mod list;
+pub mod lock;
+pub mod run;
+pub mod status;
+pub mod unlock;
 
+#[cfg(test)]
+mod edit_tests;
+#[cfg(test)]
+mod init_tests;
 #[cfg(test)]
 mod run_tests;
 #[cfg(test)]
-mod edit_tests;
+mod status_tests;
 
 use anyhow::Result;
-use clap::Subcommand;
+use clap::{Parser, Subcommand};
 
-#[derive(Subcommand, Debug)]
+use crate::config::Config;
+
+#[derive(Parser)]
+#[command(
+    name = "vaultkeeper",
+    about = "A lightweight CLI secrets manager using age encryption",
+    version
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand)]
 pub enum Commands {
-    /// Generate a new age key pair
-    Keygen {
-        #[arg(short, long, default_value = "identity.key")]
-        output: String,
-    },
-    /// Encrypt a .env file into a vault
-    Lock {
-        #[arg(short, long, default_value = ".env")]
-        input: String,
-        #[arg(short, long, default_value = ".env.vault")]
-        output: String,
-        #[arg(short, long, default_value = "identity.pub")]
-        key: String,
-    },
-    /// Decrypt a vault back to a .env file
-    Unlock {
-        #[arg(short, long, default_value = ".env.vault")]
-        input: String,
-        #[arg(short, long, default_value = ".env")]
-        output: String,
-        #[arg(short, long, default_value = "identity.key")]
-        key: String,
-    },
-    /// List keys stored in the vault
-    List {
-        #[arg(short, long, default_value = ".env.vault")]
-        vault: String,
-        #[arg(short, long, default_value = "identity.key")]
-        key: String,
-    },
-    /// Run a command with decrypted env vars injected
+    /// Initialize a new vault in the current directory
+    Init,
+    /// Generate a new age keypair
+    Keygen,
+    /// Encrypt the .env file into the vault
+    Lock,
+    /// Decrypt the vault into a .env file
+    Unlock,
+    /// List all secret keys stored in the vault
+    List,
+    /// Run a command with secrets injected as environment variables
     Run {
-        #[arg(short, long, default_value = ".env.vault")]
-        vault: String,
-        #[arg(short, long, default_value = "identity.key")]
-        key: String,
-        /// Command and arguments to execute
+        /// The command to execute
         #[arg(trailing_var_arg = true, required = true)]
         cmd: Vec<String>,
     },
-    /// Open vault contents in $EDITOR and re-encrypt on save
+    /// Edit a secret value by key
     Edit {
-        #[arg(short, long, default_value = ".env.vault")]
-        vault: String,
-        #[arg(short, long, default_value = "identity.key")]
+        /// The secret key to edit
         key: String,
     },
+    /// Show vault and key status
+    Status,
 }
 
-pub fn dispatch(command: Commands) -> Result<()> {
-    match command {
-        Commands::Keygen { output } => keygen::handle_keygen(&output),
-        Commands::Lock { input, output, key } => lock::handle_lock(&input, &output, &key),
-        Commands::Unlock { input, output, key } => unlock::handle_unlock(&input, &output, &key),
-        Commands::List { vault, key } => list::handle_list(&vault, &key),
-        Commands::Run { vault, key, cmd } => run::handle_run(&vault, &key, &cmd),
-        Commands::Edit { vault, key } => edit::handle_edit(&vault, &key),
+pub fn dispatch(cli: Cli, config: &Config) -> Result<()> {
+    match cli.command {
+        Commands::Init => init::run(config),
+        Commands::Keygen => keygen::run(config),
+        Commands::Lock => lock::run(config),
+        Commands::Unlock => unlock::run(config),
+        Commands::List => list::run(config),
+        Commands::Run { cmd } => run::run(config, &cmd),
+        Commands::Edit { key } => edit::run(config, &key),
+        Commands::Status => status::run(config),
     }
 }
