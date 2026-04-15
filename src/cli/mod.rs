@@ -1,50 +1,58 @@
-pub mod keygen;
-pub mod lock;
-pub mod unlock;
-pub mod list;
-pub mod run;
-pub mod edit;
-pub mod init;
-pub mod status;
-pub mod rotate;
-pub mod whoami;
-pub mod env;
-pub mod get;
-pub mod set;
+pub mod copy;
 pub mod delete;
-pub mod import;
+pub mod edit;
+pub mod env;
 pub mod export;
+pub mod get;
+pub mod import;
+pub mod init;
+pub mod keygen;
+pub mod list;
+pub mod lock;
+pub mod rotate;
+pub mod run;
+pub mod set;
+pub mod status;
+pub mod unset;
+pub mod unlock;
+pub mod whoami;
+pub mod diff;
 
 #[cfg(test)]
-mod run_tests;
-#[cfg(test)]
-mod edit_tests;
-#[cfg(test)]
-mod init_tests;
-#[cfg(test)]
-mod status_tests;
-#[cfg(test)]
-mod rotate_tests;
-#[cfg(test)]
-mod whoami_tests;
-#[cfg(test)]
-mod env_tests;
-#[cfg(test)]
-mod get_tests;
-#[cfg(test)]
-mod set_tests;
+mod copy_tests;
 #[cfg(test)]
 mod delete_tests;
 #[cfg(test)]
-mod import_tests;
+mod edit_tests;
+#[cfg(test)]
+mod env_tests;
 #[cfg(test)]
 mod export_tests;
+#[cfg(test)]
+mod get_tests;
+#[cfg(test)]
+mod import_tests;
+#[cfg(test)]
+mod init_tests;
+#[cfg(test)]
+mod rotate_tests;
+#[cfg(test)]
+mod run_tests;
+#[cfg(test)]
+mod set_tests;
+#[cfg(test)]
+mod status_tests;
+#[cfg(test)]
+mod unset_tests;
+#[cfg(test)]
+mod whoami_tests;
+#[cfg(test)]
+mod diff_tests;
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "vaultkeeper", about = "A lightweight CLI secrets manager", version)]
+#[command(name = "vaultkeeper", version, about = "A lightweight CLI secrets manager")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -52,54 +60,50 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Initialize a new vault
-    Init { name: Option<String> },
+    /// Initialize a new vault in the current directory
+    Init,
     /// Generate a new age keypair
     Keygen,
-    /// Encrypt the vault
-    Lock { vault: Option<String> },
-    /// Decrypt the vault
-    Unlock { vault: Option<String> },
-    /// List all vaults
+    /// Encrypt the env file (lock the vault)
+    Lock,
+    /// Decrypt the vault (unlock)
+    Unlock,
+    /// List all secret keys
     List,
-    /// Run a command with secrets injected as env vars
-    Run { vault: Option<String>, #[arg(last = true)] cmd: Vec<String> },
-    /// Edit secrets in the vault
-    Edit { vault: Option<String> },
+    /// Run a command with secrets injected
+    Run {
+        #[arg(trailing_var_arg = true)]
+        cmd: Vec<String>,
+    },
+    /// Edit the vault in $EDITOR
+    Edit,
     /// Show vault status
-    Status { vault: Option<String> },
-    /// Rotate encryption key
-    Rotate { vault: Option<String> },
+    Status,
+    /// Rotate the encryption key
+    Rotate,
     /// Show current identity
     Whoami,
     /// Print secrets as env exports
-    Env { vault: Option<String> },
-    /// Get a secret value
-    Get { key: String, vault: Option<String> },
-    /// Set a secret value
-    Set { key: String, value: String, vault: Option<String> },
-    /// Delete a secret
-    Delete { key: String, vault: Option<String> },
-    /// Import secrets from a .env file
-    Import {
-        /// Path to the .env file to import
-        file: PathBuf,
-        /// Target vault name
-        #[arg(short, long)]
-        vault: Option<String>,
-        /// Overwrite existing keys
-        #[arg(short, long)]
-        force: bool,
-    },
-    /// Export secrets to a .env file
-    Export {
-        /// Output file path
-        output: PathBuf,
-        /// Source vault name
-        #[arg(short, long)]
-        vault: Option<String>,
-        /// Overwrite output file if it exists
-        #[arg(long)]
-        overwrite: bool,
+    Env,
+    /// Get a secret value by key
+    Get { key: String },
+    /// Set a secret key-value pair
+    Set { key: String, value: String },
+    /// Delete a secret key
+    Delete { key: String },
+    /// Import secrets from a file
+    Import { path: String },
+    /// Export secrets to a file
+    Export { path: String },
+    /// Unset (remove) a key from the vault
+    Unset { key: String },
+    /// Copy a secret value to clipboard
+    Copy { key: String },
+    /// Show diff between vault and another file or vault
+    Diff {
+        /// First file or vault to compare
+        target_a: String,
+        /// Second file or vault (defaults to plaintext .env)
+        target_b: Option<String>,
     },
 }
