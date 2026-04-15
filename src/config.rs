@@ -1,49 +1,50 @@
-use std::fs;
-use std::path::Path;
-use anyhow::{Context, Result};
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use anyhow::Result;
 
-const CONFIG_PATH: &str = ".vaultkeeper/config.toml";
-const IDENTITY_PATH: &str = ".vaultkeeper/identity.txt";
-const RECIPIENT_PATH: &str = ".vaultkeeper/recipient.txt";
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VaultConfig {
-    pub env_file: String,
-    pub locked_file: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    pub vault_dir: PathBuf,
+    pub default_env: String,
 }
 
-impl Default for VaultConfig {
-    fn default() -> Self {
-        Self {
-            env_file: ".env".to_string(),
-            locked_file: ".env.age".to_string(),
+impl Config {
+    pub fn load(vault_dir: &Path) -> Result<Self> {
+        let config_path = vault_dir.join(".vaultkeeper").join("config.toml");
+        if config_path.exists() {
+            let content = std::fs::read_to_string(&config_path)?;
+            let config: Config = toml::from_str(&content)?;
+            Ok(config)
+        } else {
+            Ok(Self {
+                vault_dir: vault_dir.to_path_buf(),
+                default_env: "development".to_string(),
+            })
         }
     }
-}
 
-impl VaultConfig {
-    pub fn load() -> Result<Self> {
-        let content = fs::read_to_string(CONFIG_PATH)
-            .context("Failed to read config. Have you run `vaultkeeper init`?")?;
-        toml::from_str(&content).context("Failed to parse config.toml")
+    pub fn save(&self) -> Result<()> {
+        let config_dir = self.vault_dir.join(".vaultkeeper");
+        std::fs::create_dir_all(&config_dir)?;
+        let config_path = config_dir.join("config.toml");
+        let content = toml::to_string_pretty(self)?;
+        std::fs::write(config_path, content)?;
+        Ok(())
     }
 
-    pub fn identity() -> Result<String> {
-        let raw = fs::read_to_string(IDENTITY_PATH)
-            .context("Identity file not found. Have you run `vaultkeeper init`?")?;
-        Ok(raw.trim().to_string())
+    pub fn plain_path(&self, env: &str) -> PathBuf {
+        self.vault_dir.join(".vaultkeeper").join("plain").join(format!("{}.env", env))
     }
 
-    pub fn recipient() -> Result<String> {
-        let raw = fs::read_to_string(RECIPIENT_PATH)
-            .context("Recipient file not found. Have you run `vaultkeeper init`?")?;
-        Ok(raw.trim().to_string())
+    pub fn encrypted_path(&self, env: &str) -> PathBuf {
+        self.vault_dir.join(format!("{}.env.age", env))
     }
 
-    pub fn is_initialized() -> bool {
-        Path::new(CONFIG_PATH).exists()
-            && Path::new(IDENTITY_PATH).exists()
-            && Path::new(RECIPIENT_PATH).exists()
+    pub fn keys_dir(&self) -> PathBuf {
+        self.vault_dir.join(".vaultkeeper").join("keys")
+    }
+
+    pub fn snapshots_dir(&self) -> PathBuf {
+        self.vault_dir.join(".vaultkeeper").join("snapshots")
     }
 }
