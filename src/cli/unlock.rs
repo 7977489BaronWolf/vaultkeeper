@@ -32,6 +32,14 @@ pub fn run(args: UnlockArgs) -> Result<()> {
         );
     }
 
+    // Warn the user if the output file already exists, so they are aware it will be overwritten
+    if args.output.exists() {
+        eprintln!(
+            "⚠️  Warning: output file '{}' already exists and will be overwritten.",
+            args.output.display()
+        );
+    }
+
     decrypt_file(&args.input, &args.output, &args.identity)
         .with_context(|| format!("Failed to decrypt '{}'", args.input.display()))?;
 
