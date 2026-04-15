@@ -25,10 +25,12 @@ pub fn run(force: bool) -> Result<()> {
     let (secret_key, public_key) = generate_keypair()
         .context("Failed to generate age keypair")?;
 
-    fs::write(IDENTITY_FILE, format!("{}\n", secret_key))
+    fs::write(IDENTITY_FILE, format!("{}\ n", secret_key))
         .context("Failed to write identity file")?;
+    set_identity_file_permissions(IDENTITY_FILE)
+        .context("Failed to set permissions on identity file")?;
 
-    fs::write(RECIPIENT_FILE, format!("{}\n", public_key))
+    fs::write(RECIPIENT_FILE, format!("{}\ n", public_key))
         .context("Failed to write recipient file")?;
 
     let config_content = format!(
@@ -52,5 +54,19 @@ pub fn run(force: bool) -> Result<()> {
     println!();
     println!("Keep '{}' secret and back it up securely!", IDENTITY_FILE);
 
+    Ok(())
+}
+
+/// Restricts the identity file to be readable only by the current user (Unix only).
+/// On non-Unix platforms this is a no-op.
+fn set_identity_file_permissions(path: &str) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let permissions = fs::Permissions::from_mode(0o600);
+        fs::set_permissions(path, permissions)
+            .with_context(|| format!("Failed to chmod 600 '{}'", path))?;
+    }
+    let _ = path; // suppress unused warning on non-Unix
     Ok(())
 }
