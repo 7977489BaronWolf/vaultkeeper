@@ -1,109 +1,92 @@
-pub mod copy;
 pub mod delete;
+pub mod delete_tests;
+pub mod diff;
+pub mod diff_tests;
 pub mod edit;
+pub mod edit_tests;
 pub mod env;
+pub mod env_tests;
 pub mod export;
+pub mod export_tests;
 pub mod get;
+pub mod get_tests;
 pub mod import;
+pub mod import_tests;
 pub mod init;
+pub mod init_tests;
 pub mod keygen;
 pub mod list;
 pub mod lock;
+pub mod rename;
+pub mod rename_tests;
 pub mod rotate;
+pub mod rotate_tests;
 pub mod run;
+pub mod run_tests;
 pub mod set;
+pub mod set_tests;
 pub mod status;
-pub mod unset;
+pub mod status_tests;
 pub mod unlock;
+pub mod unset;
+pub mod unset_tests;
+pub mod copy;
+pub mod copy_tests;
 pub mod whoami;
-pub mod diff;
+pub mod whoami_tests;
+pub mod clone;
+pub mod clone_tests;
 
-#[cfg(test)]
-mod copy_tests;
-#[cfg(test)]
-mod delete_tests;
-#[cfg(test)]
-mod edit_tests;
-#[cfg(test)]
-mod env_tests;
-#[cfg(test)]
-mod export_tests;
-#[cfg(test)]
-mod get_tests;
-#[cfg(test)]
-mod import_tests;
-#[cfg(test)]
-mod init_tests;
-#[cfg(test)]
-mod rotate_tests;
-#[cfg(test)]
-mod run_tests;
-#[cfg(test)]
-mod set_tests;
-#[cfg(test)]
-mod status_tests;
-#[cfg(test)]
-mod unset_tests;
-#[cfg(test)]
-mod whoami_tests;
-#[cfg(test)]
-mod diff_tests;
+use crate::config::Config;
+use anyhow::Result;
 
-use clap::{Parser, Subcommand};
-
-#[derive(Parser)]
-#[command(name = "vaultkeeper", version, about = "A lightweight CLI secrets manager")]
-pub struct Cli {
-    #[command(subcommand)]
-    pub command: Commands,
+#[derive(Debug)]
+pub enum Command {
+    Init { env: String },
+    Lock { env: String },
+    Unlock { env: String },
+    List,
+    Run { env: String, cmd: Vec<String> },
+    Edit { env: String },
+    Status { env: String },
+    Rotate { env: String },
+    Whoami,
+    Env { env: String },
+    Get { env: String, key: String },
+    Set { env: String, key: String, value: String },
+    Delete { env: String },
+    Import { env: String, file: String },
+    Export { env: String, file: Option<String> },
+    Unset { env: String, key: String },
+    Copy { source: String, destination: String },
+    Diff { env_a: String, env_b: String },
+    Rename { old_name: String, new_name: String },
+    Clone { source: String, destination: String },
+    Keygen,
 }
 
-#[derive(Subcommand)]
-pub enum Commands {
-    /// Initialize a new vault in the current directory
-    Init,
-    /// Generate a new age keypair
-    Keygen,
-    /// Encrypt the env file (lock the vault)
-    Lock,
-    /// Decrypt the vault (unlock)
-    Unlock,
-    /// List all secret keys
-    List,
-    /// Run a command with secrets injected
-    Run {
-        #[arg(trailing_var_arg = true)]
-        cmd: Vec<String>,
-    },
-    /// Edit the vault in $EDITOR
-    Edit,
-    /// Show vault status
-    Status,
-    /// Rotate the encryption key
-    Rotate,
-    /// Show current identity
-    Whoami,
-    /// Print secrets as env exports
-    Env,
-    /// Get a secret value by key
-    Get { key: String },
-    /// Set a secret key-value pair
-    Set { key: String, value: String },
-    /// Delete a secret key
-    Delete { key: String },
-    /// Import secrets from a file
-    Import { path: String },
-    /// Export secrets to a file
-    Export { path: String },
-    /// Unset (remove) a key from the vault
-    Unset { key: String },
-    /// Copy a secret value to clipboard
-    Copy { key: String },
-    /// Show diff between vault and another file or vault
-    Diff {
-        /// First file or vault to compare
-        target_a: String,
-        /// Second file or vault (defaults to plaintext .env)
-        target_b: Option<String>,
-    },
+pub fn dispatch(command: Command, config: &Config) -> Result<()> {
+    match command {
+        Command::Init { env } => init::run(&env, config),
+        Command::Lock { env } => lock::run(&env, config),
+        Command::Unlock { env } => unlock::run(&env, config),
+        Command::List => list::run(config),
+        Command::Run { env, cmd } => run::run(&env, &cmd, config),
+        Command::Edit { env } => edit::run(&env, config),
+        Command::Status { env } => status::run(&env, config),
+        Command::Rotate { env } => rotate::run(&env, config),
+        Command::Whoami => whoami::run(config),
+        Command::Env { env } => env::run(&env, config),
+        Command::Get { env, key } => get::run(&env, &key, config),
+        Command::Set { env, key, value } => set::run(&env, &key, &value, config),
+        Command::Delete { env } => delete::run(&env, config),
+        Command::Import { env, file } => import::run(&env, &file, config),
+        Command::Export { env, file } => export::run(&env, file.as_deref(), config),
+        Command::Unset { env, key } => unset::run(&env, &key, config),
+        Command::Copy { source, destination } => copy::run(&source, &destination, config),
+        Command::Diff { env_a, env_b } => diff::run(&env_a, &env_b, config),
+        Command::Rename { old_name, new_name } => rename::run(&old_name, &new_name, config),
+        Command::Clone { source, destination } => clone::run(&source, &destination, config),
+        Command::Keygen => keygen::run(config),
+    }
 }

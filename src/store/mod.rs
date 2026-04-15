@@ -1,69 +1,65 @@
+pub mod rename;
+pub mod plain;
+
+pub use plain::{load_secrets_plain, save_secrets_plain};
+
+use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
-const VAULT_INDEX_FILE: &str = ".vault_index.json";
-
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct VaultStore {
-    pub entries: HashMap<String, VaultEntry>,
-    #[serde(skip)]
-    index_path: PathBuf,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct VaultEntry {
-    pub name: String,
-    pub encrypted_file: String,
-    pub created_at: String,
-}
-
-impl VaultStore {
-    pub fn load(vault_dir: &Path) -> Result<Self> {
-        let index_path = vault_dir.join(VAULT_INDEX_FILE);
-        if !index_path.exists() {
-            anyhow::bail!("Vault index not found at {:?}", index_path);
+/// List all environment names stored in the vault directory.
+pub fn list_envs(vault_dir: &str) -> Result<Vec<String>> {
+    let path = PathBuf::from(vault_dir);
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+    let mut envs = vec![];
+    for entry in fs::read_dir(&path).context("Failed to read vault directory")? {
+        let entry = entry?;
+        let file_name = entry.file_name();
+        let name = file_name.to_string_lossy();
+        if name.ends_with(".age") {
+            envs.push(name.trim_end_matches(".age").to_string());
         }
-        let data = fs::read_to_string(&index_path)
-            .context("Failed to read vault index")?;
-        let mut store: VaultStore = serde_json::from_str(&data)
-            .context("Failed to parse vault index")?;
-        store.index_path = index_path;
-        Ok(store)
     }
-
-    pub fn load_or_create(vault_dir: &Path) -> Result<Self> {
-        let index_path = vault_dir.join(VAULT_INDEX_FILE);
-        if index_path.exists() {
-            return Self::load(vault_dir);
-        }
-        Ok(VaultStore {
-            entries: HashMap::new(),
-            index_path,
-        })
-    }
-
-    pub fn save(&self) -> Result<()> {
-        let data = serde_json::to_string_pretty(&self)
-            .context("Failed to serialize vault index")?;
-        fs::write(&self.index_path, data)
-            .context("Failed to write vault index")?;
-        Ok(())
-    }
-
-    pub fn insert(&mut self, entry: VaultEntry) {
-        self.entries.insert(entry.name.clone(), entry);
-    }
-
-    pub fn list_entries(&self) -> Vec<&str> {
-        let mut names: Vec<&str> = self.entries.keys().map(|s| s.as_str()).collect();
-        names.sort();
-        names
-    }
-
-    pub fn get(&self, name: &str) -> Option<&VaultEntry> {
-        self.entries.get(name)
-    }
+    envs.sort();
+    Ok(envs)
 }
+
+/// Load secrets for a given environment (plain fallback for non-encrypted dev use).
+pub fn load_secrets(
+    vault_dir: &str,
+    env_name: &str,
+) -> Result<HashMap<String, String>> {
+    plain::load_secrets_plain(vault_dir, env_name)
+}
+
+/// Save secrets for a given environment.
+pub fn save_secrets(
+    vault_dir: &str,
+    env_name: &str,
+    secrets: &HashMap<String, String>,
+    _public_key: &str,
+) -> Result<()> {
+    plain::save_secrets_plain(vault_dir, env_name, secrets)
+}
+
+/// Delete an environment file from the vault.
+pub fn delete_env(vault_dir: &str, env_name: &str) -> Result<()> {
+    let path = PathBuf::from(vault_dir).join(format!("{}.age", env_name));
+    fs::remove_file(&path)
+        .with_context(|| format!("Failed to delete environment file: {:?}", path))?;
+    Ok(())
+}
+
+/// Check whether an environment exists in the vault.
+pub fn env_exists(vault_dir: &str, env_name: &str) -> bool {
+    PathBuf::from(vault_dir)
+        .join(format!("{}.age", env_name))
+        .exists()
+}
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod tests;
