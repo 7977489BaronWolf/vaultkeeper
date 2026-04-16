@@ -1,65 +1,70 @@
-pub mod rename;
+pub mod audit;
+pub mod history;
+pub mod merge;
 pub mod plain;
+pub mod rename;
+pub mod search;
+pub mod snapshot;
+pub mod tags;
+pub mod ttl;
+pub mod validate;
+pub mod watch;
 
-pub use plain::{load_secrets_plain, save_secrets_plain};
+#[cfg(test)]
+mod audit_tests;
+#[cfg(test)]
+mod history_tests;
+#[cfg(test)]
+mod merge_tests;
+#[cfg(test)]
+mod search_tests;
+#[cfg(test)]
+mod snapshot_tests;
+#[cfg(test)]
+mod tags_tests;
+#[cfg(test)]
+mod ttl_tests;
+#[cfg(test)]
+mod validate_tests;
+#[cfg(test)]
+mod watch_tests;
+#[cfg(test)]
+mod tests;
 
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
-/// List all environment names stored in the vault directory.
-pub fn list_envs(vault_dir: &str) -> Result<Vec<String>> {
-    let path = PathBuf::from(vault_dir);
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-    let mut envs = vec![];
-    for entry in fs::read_dir(&path).context("Failed to read vault directory")? {
-        let entry = entry?;
-        let file_name = entry.file_name();
-        let name = file_name.to_string_lossy();
-        if name.ends_with(".age") {
-            envs.push(name.trim_end_matches(".age").to_string());
+pub type EnvMap = HashMap<String, String>;
+
+pub fn read_env_file(path: &Path) -> Result<EnvMap> {
+    let content = fs::read_to_string(path)
+        .with_context(|| format!("Failed to read env file: {}", path.display()))?;
+    parse_env(&content)
+}
+
+pub fn parse_env(content: &str) -> Result<EnvMap> {
+    let mut map = HashMap::new();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some((k, v)) = line.split_once('=') {
+            map.insert(k.trim().to_string(), v.trim().to_string());
         }
     }
-    envs.sort();
-    Ok(envs)
+    Ok(map)
 }
 
-/// Load secrets for a given environment (plain fallback for non-encrypted dev use).
-pub fn load_secrets(
-    vault_dir: &str,
-    env_name: &str,
-) -> Result<HashMap<String, String>> {
-    plain::load_secrets_plain(vault_dir, env_name)
+pub fn write_env_file(path: &Path, map: &EnvMap) -> Result<()> {
+    let mut lines: Vec<String> = map
+        .iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect();
+    lines.sort();
+    let content = lines.join("\n") + "\n";
+    fs::write(path, content)
+        .with_context(|| format!("Failed to write env file: {}", path.display()))
 }
-
-/// Save secrets for a given environment.
-pub fn save_secrets(
-    vault_dir: &str,
-    env_name: &str,
-    secrets: &HashMap<String, String>,
-    _public_key: &str,
-) -> Result<()> {
-    plain::save_secrets_plain(vault_dir, env_name, secrets)
-}
-
-/// Delete an environment file from the vault.
-pub fn delete_env(vault_dir: &str, env_name: &str) -> Result<()> {
-    let path = PathBuf::from(vault_dir).join(format!("{}.age", env_name));
-    fs::remove_file(&path)
-        .with_context(|| format!("Failed to delete environment file: {:?}", path))?;
-    Ok(())
-}
-
-/// Check whether an environment exists in the vault.
-pub fn env_exists(vault_dir: &str, env_name: &str) -> bool {
-    PathBuf::from(vault_dir)
-        .join(format!("{}.age", env_name))
-        .exists()
-}
-
-#[cfg(test)]
-#[path = "tests.rs"]
-mod tests;
