@@ -79,3 +79,11 @@ pub fn format_audit_log(log: &[AuditEntry]) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+/// Returns all audit entries whose action matches the given predicate.
+pub fn filter_audit_log<'a, F>(log: &'a [AuditEntry], predicate: F) -> Vec<&'a AuditEntry>
+where
+    F: Fn(&AuditAction) -> bool,
+{
+    log.iter().filter(|e| predicate(&e.action)).collect()
+}
