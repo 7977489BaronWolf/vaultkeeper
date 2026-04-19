@@ -40,6 +40,15 @@ pub fn run(args: UnlockArgs) -> Result<()> {
         );
     }
 
+    // Ensure the output directory exists before attempting to write
+    if let Some(parent) = args.output.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create output directory '{}'" , parent.display())
+            })?;
+        }
+    }
+
     decrypt_file(&args.input, &args.output, &args.identity)
         .with_context(|| format!("Failed to decrypt '{}'", args.input.display()))?;
 
