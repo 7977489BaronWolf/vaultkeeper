@@ -41,3 +41,13 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+/// Wraps a command handler with context, annotating any error with the
+/// name of the subcommand that failed to make diagnostics easier.
+#[allow(dead_code)]
+fn with_command_context<F>(command_name: &'static str, f: F) -> Result<()>
+where
+    F: FnOnce() -> Result<()>,
+{
+    f().map_err(|e| e.context(format!("command '{}' failed", command_name)))
+}
