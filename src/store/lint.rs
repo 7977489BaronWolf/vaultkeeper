@@ -58,3 +58,8 @@ pub fn lint_secrets(secrets: &HashMap<String, String>) -> Vec<LintIssue> {
 
     issues
 }
+
+/// Returns only the issues matching the given lint level.
+pub fn filter_issues_by_level(issues: &[LintIssue], level: LintLevel) -> Vec<&LintIssue> {
+    issues.iter().filter(|i| i.level == level).collect()
+}
