@@ -1,86 +1,84 @@
 use std::collections::HashMap;
 
-/// Maximum number of secrets allowed per namespace by default.
-const DEFAULT_MAX_SECRETS: usize = 500;
-
-/// Quota configuration for a vault namespace.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Quota {
-    pub max_secrets: usize,
-    pub max_key_length: usize,
+pub struct QuotaConfig {
+    pub max_keys: usize,
     pub max_value_bytes: usize,
+    pub max_total_bytes: usize,
 }
 
-impl Default for Quota {
+impl Default for QuotaConfig {
     fn default() -> Self {
         Self {
-            max_secrets: DEFAULT_MAX_SECRETS,
-            max_key_length: 128,
-            max_value_bytes: 65_536, // 64 KiB
+            max_keys: 500,
+            max_value_bytes: 4096,
+            max_total_bytes: 1_048_576, // 1 MiB
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum QuotaError {
-    TooManySecrets { limit: usize, current: usize },
-    KeyTooLong { limit: usize, actual: usize },
-    ValueTooLarge { limit: usize, actual: usize },
+#[derive(Debug, Clone, PartialEq)]
+pub struct QuotaReport {
+    pub key_count: usize,
+    pub max_keys: usize,
+    pub total_bytes: usize,
+    pub max_total_bytes: usize,
+    pub largest_key: Option<String>,
+    pub largest_value_bytes: usize,
+    pub violations: Vec<String>,
 }
 
-impl std::fmt::Display for QuotaError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            QuotaError::TooManySecrets { limit, current } => {
-                write!(f, "quota exceeded: max {limit} secrets, currently at {current}")
-            }
-            QuotaError::KeyTooLong { limit, actual } => {
-                write!(f, "key too long: max {limit} chars, got {actual}")
-            }
-            QuotaError::ValueTooLarge { limit, actual } => {
-                write!(f, "value too large: max {limit} bytes, got {actual}")
-            }
+impl QuotaReport {
+    pub fn is_ok(&self) -> bool {
+        self.violations.is_empty()
+    }
+}
+
+pub fn check_quota(secrets: &HashMap<String, String>, config: &QuotaConfig) -> QuotaReport {
+    let key_count = secrets.len();
+    let mut total_bytes = 0usize;
+    let mut largest_key: Option<String> = None;
+    let mut largest_value_bytes = 0usize;
+    let mut violations = Vec::new();
+
+    for (k, v) in secrets {
+        let vlen = v.len();
+        total_bytes += k.len() + vlen;
+
+        if vlen > largest_value_bytes {
+            largest_value_bytes = vlen;
+            largest_key = Some(k.clone());
+        }
+
+        if vlen > config.max_value_bytes {
+            violations.push(format!(
+                "key '{}' value exceeds max ({} > {} bytes)",
+                k, vlen, config.max_value_bytes
+            ));
         }
     }
-}
 
-/// Check whether adding a new secret would violate quota constraints.
-pub fn check_insert(
-    quota: &Quota,
-    secrets: &HashMap<String, String>,
-    key: &str,
-    value: &str,
-) -> Result<(), QuotaError> {
-    // Only count as new if the key doesn't already exist.
-    let is_new = !secrets.contains_key(key);
-    if is_new && secrets.len() >= quota.max_secrets {
-        return Err(QuotaError::TooManySecrets {
-            limit: quota.max_secrets,
-            current: secrets.len(),
-        });
+    if key_count > config.max_keys {
+        violations.push(format!(
+            "key count exceeds max ({} > {})",
+            key_count, config.max_keys
+        ));
     }
-    if key.len() > quota.max_key_length {
-        return Err(QuotaError::KeyTooLong {
-            limit: quota.max_key_length,
-            actual: key.len(),
-        });
-    }
-    if value.len() > quota.max_value_bytes {
-        return Err(QuotaError::ValueTooLarge {
-            limit: quota.max_value_bytes,
-            actual: value.len(),
-        });
-    }
-    Ok(())
-}
 
-/// Return a human-readable summary of current usage vs quota.
-pub fn usage_summary(quota: &Quota, secrets: &HashMap<String, String>) -> String {
-    format!(
-        "secrets: {}/{} | key limit: {} chars | value limit: {} bytes",
-        secrets.len(),
-        quota.max_secrets,
-        quota.max_key_length,
-        quota.max_value_bytes,
-    )
+    if total_bytes > config.max_total_bytes {
+        violations.push(format!(
+            "total size exceeds max ({} > {} bytes)",
+            total_bytes, config.max_total_bytes
+        ));
+    }
+
+    QuotaReport {
+        key_count,
+        max_keys: config.max_keys,
+        total_bytes,
+        max_total_bytes: config.max_total_bytes,
+        largest_key,
+        largest_value_bytes,
+        violations,
+    }
 }
