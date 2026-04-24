@@ -22,28 +22,34 @@ mod tests {
         (sk_path, pk_path)
     }
 
+    /// Helper: encrypt `contents` into `vault`, decrypt it back, and assert the round-trip is
+    /// lossless. Returns the raw bytes read back from the vault file after decryption.
+    fn assert_encrypt_decrypt_roundtrip(
+        contents: &[u8],
+        vault: &std::path::Path,
+        pk: &std::path::Path,
+        sk: &std::path::Path,
+    ) -> Vec<u8> {
+        encrypt_file(contents, vault.to_str().unwrap(), pk.to_str().unwrap())
+            .expect("encrypt failed");
+        let decrypted = decrypt_file(vault.to_str().unwrap(), sk.to_str().unwrap())
+            .expect("decrypt failed");
+        assert_eq!(&decrypted, contents, "round-trip mismatch");
+        decrypted
+    }
+
     #[test]
     fn edit_round_trip_preserves_content() {
         let dir = tempdir().unwrap();
         let (sk, pk) = generate_test_key(dir.path());
         let vault = dir.path().join("test.vault");
 
-        // Initial encrypt
-        encrypt_file(sample_env(), vault.to_str().unwrap(), pk.to_str().unwrap())
-            .expect("initial encrypt failed");
+        // Initial encrypt + verify
+        assert_encrypt_decrypt_roundtrip(sample_env(), &vault, &pk, &sk);
 
-        // Simulate edit: decrypt, modify, re-encrypt
-        let original = decrypt_file(vault.to_str().unwrap(), sk.to_str().unwrap())
-            .expect("decrypt failed");
-        assert_eq!(original, sample_env());
-
+        // Simulate edit: re-encrypt with updated content and verify
         let updated = b"API_KEY=newsecret\nDB_PASS=correct-horse\n";
-        encrypt_file(updated, vault.to_str().unwrap(), pk.to_str().unwrap())
-            .expect("re-encrypt failed");
-
-        let result = decrypt_file(vault.to_str().unwrap(), sk.to_str().unwrap())
-            .expect("final decrypt failed");
-        assert_eq!(result, updated);
+        assert_encrypt_decrypt_roundtrip(updated, &vault, &pk, &sk);
     }
 
     #[test]
