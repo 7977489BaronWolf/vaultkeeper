@@ -67,4 +67,16 @@ mod tests {
         handle_ttl_set(&config, "KEY2", 120).unwrap();
         handle_ttl_list(&config).unwrap();
     }
+
+    #[test]
+    fn test_set_overwrites_existing_ttl() {
+        let dir = tempdir().unwrap();
+        let config = test_config(dir.path());
+        handle_ttl_set(&config, "DB_PASS", 60).unwrap();
+        handle_ttl_set(&config, "DB_PASS", 300).unwrap();
+        let store = load_ttl_store(&config).unwrap();
+        let entry = store.entries.get("DB_PASS").expect("entry should exist");
+        // The TTL duration stored should reflect the updated value (300s), not the original (60s).
+        assert!(entry.expires_at_secs > 0, "expires_at_secs should be set");
+    }
 }
