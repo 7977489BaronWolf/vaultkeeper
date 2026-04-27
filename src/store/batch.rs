@@ -24,6 +24,11 @@ impl BatchResult {
     pub fn is_ok(&self) -> bool {
         self.failed.is_empty()
     }
+
+    /// Returns the total number of operations processed (succeeded + failed).
+    pub fn total(&self) -> usize {
+        self.succeeded.len() + self.failed.len()
+    }
 }
 
 pub fn apply_batch(
@@ -66,21 +71,29 @@ pub fn parse_batch_ops(input: &str) -> Result<Vec<BatchOp>, String> {
         }
         if let Some(rest) = line.strip_prefix("SET ") {
             if let Some((k, v)) = rest.split_once('=') {
+                let key = k.trim().to_string();
+                if key.is_empty() {
+                    return Err(format!("line {}: SET key must not be empty", i + 1));
+                }
                 ops.push(BatchOp::Set {
-                    key: k.trim().to_string(),
+                    key,
                     value: v.to_string(),
                 });
             } else {
                 return Err(format!("line {}: invalid SET syntax", i + 1));
             }
         } else if let Some(key) = line.strip_prefix("DELETE ") {
-            ops.push(BatchOp::Delete {
-                key: key.trim().to_string(),
-            });
+            let key = key.trim().to_string();
+            if key.is_empty() {
+                return Err(format!("line {}: DELETE key must not be empty", i + 1));
+            }
+            ops.push(BatchOp::Delete { key });
         } else if let Some(key) = line.strip_prefix("UNSET ") {
-            ops.push(BatchOp::Unset {
-                key: key.trim().to_string(),
-            });
+            let key = key.trim().to_string();
+            if key.is_empty() {
+                return Err(format!("line {}: UNSET key must not be empty", i + 1));
+            }
+            ops.push(BatchOp::Unset { key });
         } else {
             return Err(format!("line {}: unknown operation", i + 1));
         }
