@@ -63,4 +63,25 @@ mod tests {
         let entry = store.get_entry("X").unwrap();
         assert_eq!(entry.status, LockStatus::Unlocked);
     }
+
+    #[test]
+    fn test_lock_key_no_reason() {
+        // Locking a key without a reason should store None for the reason field
+        let mut store = LockStateStore::new();
+        store.lock_key("NO_REASON_KEY", None);
+        let entry = store.get_entry("NO_REASON_KEY").unwrap();
+        assert!(entry.reason.is_none());
+        assert_eq!(entry.status, LockStatus::Locked);
+    }
+
+    #[test]
+    fn test_relock_key_updates_reason() {
+        // Re-locking an already locked key should update the reason
+        let mut store = LockStateStore::new();
+        store.lock_key("RELOCK_KEY", Some("initial reason".to_string()));
+        store.lock_key("RELOCK_KEY", Some("updated reason".to_string()));
+        let entry = store.get_entry("RELOCK_KEY").unwrap();
+        assert_eq!(entry.reason.as_deref(), Some("updated reason"));
+        assert_eq!(entry.status, LockStatus::Locked);
+    }
 }
