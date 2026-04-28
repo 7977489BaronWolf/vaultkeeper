@@ -68,6 +68,12 @@ impl NamespaceStore {
         Ok(())
     }
 
+    /// Removes the namespace assignment for the given key, if one exists.
+    /// Returns `true` if an assignment was removed, `false` if the key had no assignment.
+    pub fn unassign(&mut self, key: &str) -> bool {
+        self.assignments.remove(key).is_some()
+    }
+
     pub fn get_namespace_for_key(&self, key: &str) -> Option<&Namespace> {
         self.assignments
             .get(key)
